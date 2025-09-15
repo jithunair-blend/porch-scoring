@@ -1,0 +1,25 @@
+# Bytecode / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local data cache (inputs + outputs)
+data_cache/
+
+# Logs
+*.log
+
+# Environment & secrets
+.env
+
+# Virtual environments (if any)
+.venv/
+env/
+venv/
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# VSCode settings (optional, keeps repo clean)
+.vscode/

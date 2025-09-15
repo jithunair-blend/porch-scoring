@@ -1,0 +1,19 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local data (inputs + outputs)
+data_cache/
+
+# Environment files (AWS creds etc.)
+.env
+
+# Git repo metadata
+.git
+.gitignore
+
+# Logs
+*.log
+
+# VSCode configs
+.vscode/
