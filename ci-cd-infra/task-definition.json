@@ -1,0 +1,31 @@
+{
+  "family": "porch-scoring-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::450174438062:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::450174438062:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "porch-scoring-container",
+      "image": "450174438062.dkr.ecr.us-east-1.amazonaws.com/porch-scoring:latest",
+      "essential": true,
+      "environment": [
+        { "name": "AWS_REGION", "value": "us-east-1" }
+      ],
+      "secrets": [
+        { "name": "AWS_ACCESS_KEY_ID", "valueFrom": "arn:aws:ssm:us-east-1:450174438062:parameter/AWS_ACCESS_KEY_ID" },
+        { "name": "AWS_SECRET_ACCESS_KEY", "valueFrom": "arn:aws:ssm:us-east-1:450174438062:parameter/AWS_SECRET_ACCESS_KEY" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/porch-scoring",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
