@@ -14,10 +14,6 @@
       "environment": [
         { "name": "AWS_REGION", "value": "us-east-1" }
       ],
-      "secrets": [
-        { "name": "AWS_ACCESS_KEY_ID", "valueFrom": "arn:aws:ssm:us-east-1:450174438062:parameter/AWS_ACCESS_KEY_ID" },
-        { "name": "AWS_SECRET_ACCESS_KEY", "valueFrom": "arn:aws:ssm:us-east-1:450174438062:parameter/AWS_SECRET_ACCESS_KEY" }
-      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
