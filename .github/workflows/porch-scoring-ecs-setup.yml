@@ -137,7 +137,7 @@ jobs:
     # ---------------------------------------------------------
     - name: Fetch ECS task logs
       run: |
-        LOG_GROUP="/ecs/${{ env.CONTAINER_NAME }}"
+        LOG_GROUP="/ecs/porch-scoring"
         echo "Fetching latest logs from CloudWatch group: $LOG_GROUP"
         aws logs get-log-events \
           --log-group-name $LOG_GROUP \
