@@ -38,12 +38,12 @@ env:
   ECR_REPOSITORY: porch-scoring           # Name of your Amazon ECR repository
   ECS_CLUSTER: porch-cluster              # Name of your ECS cluster
   ECS_TASK_DEFINITION: ci-cd-infra/task-definition.json  # Path to your ECS task definition JSON
-  ECS_TASK_FAMILY: porch-scoring-task     #Adding Task Family
+  ECS_TASK_FAMILY: porch-scoring-task     # Task definition family name
   CONTAINER_NAME: porch-scoring-container # Name of container in the task definition
 
   # ---- Networking (Fargate launch configuration) ----
-  SUBNETS: subnet-0ea6ac99210fa56f4,subnet-079da42ab19f8fa27,subnet-0224e70262bf44635,subnet-0814469f85d83560a  # Replace/add subnets in your VPC
-  SECURITY_GROUP: sg-084047e530eae1486         # Security group for Porch Automation
+  SUBNETS: subnet-0ea6ac99210fa56f4,subnet-079da42ab19f8fa27,subnet-0224e70262bf44635,subnet-0814469f85d83560a  # Subnets from your VPC
+  SECURITY_GROUP: sg-084047e530eae1486   # Security group for Porch Automation
 
 permissions:
   contents: read
@@ -93,15 +93,26 @@ jobs:
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
     # ---------------------------------------------------------
-    # Step 5: Update ECS task definition with new image tag
+    # Step 5: Render and register new ECS task definition
     # ---------------------------------------------------------
-    - name: Render new ECS task definition
+    - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
         task-definition: ${{ env.ECS_TASK_DEFINITION }}
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
+
+    - name: Register updated ECS task definition
+      id: register-task
+      run: |
+        echo "Registering new ECS task definition..."
+        NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+          --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+          --query "taskDefinition.taskDefinitionArn" \
+          --output text)
+        echo "New task definition ARN: $NEW_TASK_DEF_ARN"
+        echo "new_task_def_arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
     # ---------------------------------------------------------
     # Step 6: Run ECS task once (not as a service)
@@ -113,7 +124,7 @@ jobs:
         TASK_ARN=$(aws ecs run-task \
           --cluster ${{ env.ECS_CLUSTER }} \
           --launch-type FARGATE \
-          --task-definition ${{ env.ECS_TASK_FAMILY }} \
+          --task-definition ${{ steps.register-task.outputs.new_task_def_arn }} \
           --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
           --count 1 \
           --query "tasks[0].taskArn" \
@@ -150,3 +161,4 @@ jobs:
             --output text) \
           --limit 50 \
           --output text || echo "No logs found."
+
