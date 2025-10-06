@@ -38,6 +38,7 @@ env:
   ECR_REPOSITORY: porch-scoring           # Name of your Amazon ECR repository
   ECS_CLUSTER: porch-cluster              # Name of your ECS cluster
   ECS_TASK_DEFINITION: ci-cd-infra/task-definition.json  # Path to your ECS task definition JSON
+  ECS_TASK_FAMILY: porch-scoring-task     #Adding Task Family
   CONTAINER_NAME: porch-scoring-container # Name of container in the task definition
 
   # ---- Networking (Fargate launch configuration) ----
