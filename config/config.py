@@ -15,9 +15,9 @@ S3_ASSETS = {
     "epsilon_model": {"bucket": "porchmodels", "key": "final_xgb_model_top_hpt_epsilon.json"},
 
     # Raw CSVs
-    "original_csv":  {"bucket": "porchsalesdatafiles", "key": "AHP 2025 Converters thru 8.27.25.csv"},
-    "acxiom_data":   {"bucket": "porchsalesdatafiles", "key": "AHP 2025 Converters thru 8.27.25_ACX_appended.xlsx"},
-    "epsilon_data":  {"bucket": "porchsalesdatafiles", "key": "AHP 2025 Converters thru 8.27.25_EPS_appended.xlsx"},
+    "original_csv":  {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters.csv"},
+    "acxiom_data":   {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters-ACX-appended.xlsx"},
+    "epsilon_data":  {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters-EPS-appended.xlsx"},
 }
 
 # Where downloaded files will be cached locally
