@@ -1,58 +1,68 @@
 # This workflow will build and push a new container image to Amazon ECR,
-# and then will deploy a new task definition to Amazon ECS, when there is a push to the "main" branch.
+# and then will launch a one-time ECS Fargate task (not a long-running service)
+# whenever a push is made to the "main" branch.
 #
-# To use this workflow, you will need to complete the following set-up steps:
+# To use this workflow, please complete the setup steps below:
 #
 # 1. Create an ECR repository to store your images.
-#    For example: `aws ecr create-repository --repository-name my-ecr-repo --region us-east-2`.
-#    Replace the value of the `ECR_REPOSITORY` environment variable in the workflow below with your repository's name.
-#    Replace the value of the `AWS_REGION` environment variable in the workflow below with your repository's region.
+#    Example:
+#      aws ecr create-repository --repository-name porch-scoring --region us-east-1
 #
-# 2. Create an ECS task definition, an ECS cluster, and an ECS service.
-#    For example, follow the Getting Started guide on the ECS console:
-#      https://us-east-2.console.aws.amazon.com/ecs/home?region=us-east-2#/firstRun
-#    Replace the value of the `ECS_SERVICE` environment variable in the workflow below with the name you set for the Amazon ECS service.
-#    Replace the value of the `ECS_CLUSTER` environment variable in the workflow below with the name you set for the cluster.
+# 2. Create an ECS cluster and a task definition for your model scoring job.
+#    You do NOT need an ECS Service for this workflow — the job will run once per trigger.
+#    Example:
+#      Cluster: porch-cluster
+#      Task definition: porch-scoring-task
 #
-# 3. Store your ECS task definition as a JSON file in your repository.
-#    The format should follow the output of `aws ecs register-task-definition --generate-cli-skeleton`.
-#    Replace the value of the `ECS_TASK_DEFINITION` environment variable in the workflow below with the path to the JSON file.
-#    Replace the value of the `CONTAINER_NAME` environment variable in the workflow below with the name of the container
-#    in the `containerDefinitions` section of the task definition.
+# 3. Store your ECS task definition JSON in your repository.
+#    Example path: ci-cd-infra/task-definition.json
+#    This file should match the output from:
+#      aws ecs register-task-definition --generate-cli-skeleton
 #
-# 4. Store an IAM user access key in GitHub Actions secrets named `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-#    See the documentation for each action used below for the recommended IAM policies for this IAM user,
-#    and best practices on handling the access key credentials.
+# 4. Store your AWS credentials in GitHub Actions secrets:
+#    AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+#
+# 5. Update the subnet IDs and security group ID below
+#    (taken from your ECS task and VPC setup).
+#    These tell AWS which network configuration to use when launching Fargate.
 
-name: Deploy to Amazon ECS
+name: Run one-time ECS Scoring Job
 
 on:
   push:
     branches: [ "main" ]
 
 env:
-  AWS_REGION: us-east-1                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: porch-scoring           # set this to your Amazon ECR repository name
-  ECS_SERVICE: porch-scoring-service                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: porch-cluster                 # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: ci-cd-infra/task-definition.json # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: porch-scoring-container           # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
+  # ---- AWS and ECS configuration ----
+  AWS_REGION: us-east-1                   # AWS region for ECS and ECR
+  ECR_REPOSITORY: porch-scoring           # Name of your Amazon ECR repository
+  ECS_CLUSTER: porch-cluster              # Name of your ECS cluster
+  ECS_TASK_DEFINITION: ci-cd-infra/task-definition.json  # Path to your ECS task definition JSON
+  CONTAINER_NAME: porch-scoring-container # Name of container in the task definition
+
+  # ---- Networking (Fargate launch configuration) ----
+  SUBNETS: subnet-0ea6ac992107a56f4,subnet-022e74062b4f4465s   # Replace/add subnets in your VPC
+  SECURITY_GROUP: sg-084047e3ace01486                           # Security group for Porch Automation
 
 permissions:
   contents: read
 
 jobs:
   deploy:
-    name: Deploy
+    name: Build and Run Scoring Task
     runs-on: ubuntu-latest
     environment: production
 
     steps:
+    # ---------------------------------------------------------
+    # Step 1: Checkout repository
+    # ---------------------------------------------------------
     - name: Checkout
       uses: actions/checkout@v4
 
+    # ---------------------------------------------------------
+    # Step 2: Configure AWS credentials
+    # ---------------------------------------------------------
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
@@ -60,24 +70,31 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    # ---------------------------------------------------------
+    # Step 3: Login to Amazon ECR
+    # ---------------------------------------------------------
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
+    # ---------------------------------------------------------
+    # Step 4: Build, tag, and push Docker image to ECR
+    # ---------------------------------------------------------
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Build a docker container and
-        # push it to ECR so that it can
-        # be deployed to ECS.
+        echo "Building and pushing Docker image..."
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    - name: Fill in the new image ID in the Amazon ECS task definition
+    # ---------------------------------------------------------
+    # Step 5: Update ECS task definition with new image tag
+    # ---------------------------------------------------------
+    - name: Render new ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
@@ -85,10 +102,50 @@ jobs:
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-      with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
+    # ---------------------------------------------------------
+    # Step 6: Run ECS task once (not as a service)
+    # ---------------------------------------------------------
+    - name: Run ECS scoring task (one-time)
+      id: run-task
+      run: |
+        echo "Launching ECS Fargate scoring task..."
+        TASK_ARN=$(aws ecs run-task \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --launch-type FARGATE \
+          --task-definition ${{ steps.task-def.outputs.task-definition }} \
+          --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
+          --count 1 \
+          --query "tasks[0].taskArn" \
+          --output text)
+        echo "Task started: $TASK_ARN"
+        echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+
+    # ---------------------------------------------------------
+    # Step 7: Wait until task finishes (optional but recommended)
+    # ---------------------------------------------------------
+    - name: Wait for ECS task to complete
+      run: |
+        echo "Waiting for ECS task to complete..."
+        aws ecs wait tasks-stopped \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --tasks ${{ steps.run-task.outputs.task_arn }}
+        echo "ECS task completed successfully."
+
+    # ---------------------------------------------------------
+    # Step 8: Fetch CloudWatch logs (for visibility)
+    # ---------------------------------------------------------
+    - name: Fetch ECS task logs
+      run: |
+        LOG_GROUP="/ecs/${{ env.CONTAINER_NAME }}"
+        echo "Fetching latest logs from CloudWatch group: $LOG_GROUP"
+        aws logs get-log-events \
+          --log-group-name $LOG_GROUP \
+          --log-stream-name $(aws logs describe-log-streams \
+            --log-group-name $LOG_GROUP \
+            --order-by LastEventTime \
+            --descending \
+            --max-items 1 \
+            --query "logStreams[0].logStreamName" \
+            --output text) \
+          --limit 50 \
+          --output text || echo "No logs found."
