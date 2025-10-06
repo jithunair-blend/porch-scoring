@@ -113,7 +113,7 @@ jobs:
         TASK_ARN=$(aws ecs run-task \
           --cluster ${{ env.ECS_CLUSTER }} \
           --launch-type FARGATE \
-          --task-definition ${{ steps.task-def.outputs.task-definition }} \
+          --task-definition ${{ env.ECS_TASK_FAMILY }} \
           --network-configuration "awsvpcConfiguration={subnets=[${{ env.SUBNETS }}],securityGroups=[${{ env.SECURITY_GROUP }}],assignPublicIp=ENABLED}" \
           --count 1 \
           --query "tasks[0].taskArn" \
