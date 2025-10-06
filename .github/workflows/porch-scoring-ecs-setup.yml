@@ -43,7 +43,7 @@ env:
 
   # ---- Networking (Fargate launch configuration) ----
   SUBNETS: subnet-0ea6ac99210fa56f4,subnet-079da42ab19f8fa27,subnet-0224e70262bf44635,subnet-0814469f85d83560a  # Replace/add subnets in your VPC
-  SECURITY_GROUP: sg-084047e3ace01486         # Security group for Porch Automation
+  SECURITY_GROUP: sg-084047e530eae1486         # Security group for Porch Automation
 
 permissions:
   contents: read
