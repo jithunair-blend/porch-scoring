@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
 from helpers.read_s3 import get_asset
-
+from helpers.generate_snowflake_data import generate_and_upload_acxiom_data
 
 def preprocess_acx(asset_name: str):
+# def preprocess_acx():
 
-
-    use_cols=['CUSTOMER_ID','RECORD_KEY', 'ADDRESS_LINE2','CONCAT_ADDRESS','ZIP_CODE','ZIP4_CODE','STATE',
+    use_cols=['FIRST_NAME','LAST_NAME','ADDRESS_LINE_1','ADDRESS_LINE_2','RECORD_KEY', 'ADDRESS_LINE2','CONCAT_ADDRESS','ZIP_CODE','ZIP4_CODE','STATE',
     'AP001241',
     'IBE8707',
     'IBE8579',
@@ -88,18 +88,35 @@ def preprocess_acx(asset_name: str):
     'PX011283_01',
     'PX011284_01',
     'PX011282_01',
-    "MatchScore"]
+    "MATCH_SCORE"]
 
-    local_path = get_asset(asset_name)  
-    scoring_df = pd.read_excel(local_path, usecols=use_cols)
+    # local_path = get_asset(asset_name)  
+    # scoring_df = pd.read_csv("C:/Users/JithuNair/OneDrive - Blend 360/Documents/Projects/Porch/New/match_acx_results.csv")
+    scoring_df = generate_and_upload_acxiom_data()
+    # Example: df = pd.read_csv("your_file.csv")
+
+    scoring_df = scoring_df.rename(columns={
+        'ACX_RECORD_KEY': 'RECORD_KEY',
+        'CASS_FIRST_NAME': 'FIRST_NAME',
+        'CASS_LAST_NAME': 'LAST_NAME',
+        'CASS_ADDRESS_LINE_1': 'ADDRESS_LINE_1',
+        'CASS_ADDRESS_LINE_2': 'ADDRESS_LINE_2',
+        'ACX_ADDRESS': 'CONCAT_ADDRESS',
+        'CASS_ZIPCODE': 'ZIP_CODE',
+        'CASS_STATE': 'STATE'
+    })
+
+    scoring_df = scoring_df[use_cols]
 
 
     #Drop rows where more than 30 percent of column being null to avoid having the model impute them
-    scoring_df = scoring_df[scoring_df["MatchScore"].notna() & (scoring_df.isnull().sum(axis=1) / scoring_df.shape[1] * 100 <= 30)]
-    scoring_df.drop(columns = ['MatchScore'],inplace=True,axis=1)
+    scoring_df = scoring_df[scoring_df["MATCH_SCORE"].notna() & (scoring_df.isnull().sum(axis=1) / scoring_df.shape[1] * 100 <= 30)]
+    scoring_df.drop(columns = ['MATCH_SCORE'],inplace=True,axis=1)
+
+    # scoring_df = generate_acxiom_data()
 
     # Step 1: Separate individual IDs and addresses from the scoring data
-    df_scoring_ids = scoring_df[['CUSTOMER_ID','RECORD_KEY', 'ADDRESS_LINE2','CONCAT_ADDRESS','ZIP_CODE','ZIP4_CODE','STATE']]  # Edit if the columns change
+    df_scoring_ids = scoring_df[['RECORD_KEY','FIRST_NAME','LAST_NAME','ADDRESS_LINE_1','ADDRESS_LINE_2','ADDRESS_LINE2','CONCAT_ADDRESS','ZIP_CODE','ZIP4_CODE','STATE']].copy() # Edit if the columns change
 
     top_features_continous=['AP001241',
     'IBE8707',
@@ -187,15 +204,28 @@ def preprocess_acx(asset_name: str):
     'PX011282_01']
 
 
-    # Loop through each variable and impute based on skewness
+    # # Loop through each variable and impute based on skewness
+    # for var in top_features_continous:
+    #     skew_val = scoring_df[var].skew()
+    #     if abs(skew_val) > 1:
+    #         # Highly skewed → use median
+    #         scoring_df[var] = scoring_df[var].fillna(scoring_df[var].median())
+    #     else:
+    #         # Fairly symmetric → use mean
+    #         scoring_df[var] = scoring_df[var].fillna(scoring_df[var].mean())
+
     for var in top_features_continous:
-        skew_val = scoring_df[var].skew()
+        # Ensure column is numeric
+        scoring_df[var] = pd.to_numeric(scoring_df[var], errors='coerce')
+
+        skew_val = scoring_df[var].skew(skipna=True)
         if abs(skew_val) > 1:
             # Highly skewed → use median
             scoring_df[var] = scoring_df[var].fillna(scoring_df[var].median())
         else:
             # Fairly symmetric → use mean
             scoring_df[var] = scoring_df[var].fillna(scoring_df[var].mean())
+
 
 
 
@@ -472,6 +502,9 @@ def preprocess_acx(asset_name: str):
         dtype='int8'  # or 'uint8' if all values are non-negative
     )
 
+    # scoring_df[['PX011282_01_14.0', 'PX011282_01_69.0', 'PX011282_01_67.0',
+    #         'PX011282_01_13.0', 'PX011282_01_70.0', 'PX011282_01_28.0',
+    #         'PX011282_01_73.0', 'PX011282_01_72.0']] = np.nan
 
     X_train_top_columns=['IBE8436',
     'IBE9356',
@@ -574,8 +607,25 @@ def preprocess_acx(asset_name: str):
     'AP009354',
     'IBE7829']
 
+    # ✅ Ensure all expected columns exist, fill missing with NaN (XGBoost handles NaN natively)
+    for col in X_train_top_columns:
+        if col not in scoring_df.columns:
+            scoring_df[col] = np.nan
+
+    # ✅ Reorder columns to match the model's expected schema
+    scoring_df = scoring_df[X_train_top_columns]
+
 
     scoring_df=scoring_df[X_train_top_columns]
     # scoring_df.head()
 
+    # scoring_df.to_csv("scoring_df.csv")
+    df_scoring_ids = df_scoring_ids.loc[:, ~df_scoring_ids.columns.duplicated()]
+    # df_scoring_ids.to_csv("scoring_ids.csv")
+    # print(df_scoring_ids.columns)
+    # print(df_scoring_ids.shape)
+    # print(df_scoring_ids.head(2))
     return scoring_df, df_scoring_ids
+
+# if __name__ == "__main__":
+#     scoring_df,df_scoring_ids = preprocess_acx()
