@@ -137,17 +137,29 @@ jobs:
         echo "TASK_ID=$TASK_ID" >> $GITHUB_ENV
 
     # ---------------------------------------------------------
-    # Step 7: Wait until task finishes (extended timeout)
+    # Step 7: Wait until task finishes (manual long wait loop)
     # ---------------------------------------------------------
     - name: Wait for ECS task to complete
       timeout-minutes: 60
       run: |
         echo "Waiting (up to 60 min) for ECS task to complete..."
-        aws ecs wait tasks-stopped \
-          --cluster ${{ env.ECS_CLUSTER }} \
-          --tasks $TASK_ARN \
-          --max-attempts 240
-        echo "ECS task reached STOPPED."
+        for i in $(seq 1 240); do  # 240 * 15s ≈ 1 hour
+          STATUS=$(aws ecs describe-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks $TASK_ARN \
+            --query "tasks[0].lastStatus" \
+            --output text)
+          echo "[$(date)] Current status: $STATUS"
+          if [ "$STATUS" = "STOPPED" ]; then
+            echo "ECS task reached STOPPED."
+            break
+          fi
+          sleep 15
+        done
+        if [ "$STATUS" != "STOPPED" ]; then
+          echo "::error::Task did not stop within expected time (60 min)"
+          exit 1
+        fi
 
     # ---------------------------------------------------------
     # Step 8: Check task exit code and stopped reason
