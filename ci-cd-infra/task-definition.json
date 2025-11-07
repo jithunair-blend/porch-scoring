@@ -21,8 +21,37 @@
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs"
         }
-      }
+      },
+      "secrets": [
+        {
+          "name": "SNOWFLAKE_USER",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_USER::"
+        },
+        {
+          "name": "SNOWFLAKE_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_PASSWORD::"
+        },
+        {
+          "name": "SNOWFLAKE_ACCOUNT",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_ACCOUNT::"
+        },
+        {
+          "name": "SNOWFLAKE_ROLE",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_ROLE::"
+        },
+        {
+          "name": "SNOWFLAKE_DATABASE",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_DATABASE::"
+        },
+        {
+          "name": "SNOWFLAKE_WAREHOUSE",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_WAREHOUSE::"
+        },
+        {
+          "name": "SNOWFLAKE_SCHEMA",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:450174438062:secret:porch/snowflake-9Gy76g:SNOWFLAKE_SCHEMA::"
+        }
+      ]
     }
   ]
 }
-
