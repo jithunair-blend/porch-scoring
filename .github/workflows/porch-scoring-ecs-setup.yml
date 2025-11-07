@@ -130,35 +130,58 @@ jobs:
           --query "tasks[0].taskArn" \
           --output text)
         echo "Task started: $TASK_ARN"
-        echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+        # Persist for later steps
+        echo "TASK_ARN=$TASK_ARN" >> $GITHUB_ENV
+        # Derive the short Task ID (last path element of ARN)
+        TASK_ID=${TASK_ARN##*/}
+        echo "TASK_ID=$TASK_ID" >> $GITHUB_ENV
 
     # ---------------------------------------------------------
-    # Step 7: Wait until task finishes (optional but recommended)
+    # Step 7: Wait until task finishes (extended timeout)
     # ---------------------------------------------------------
     - name: Wait for ECS task to complete
+      timeout-minutes: 60
       run: |
-        echo "Waiting for ECS task to complete..."
+        echo "Waiting (up to 60 min) for ECS task to complete..."
         aws ecs wait tasks-stopped \
           --cluster ${{ env.ECS_CLUSTER }} \
-          --tasks ${{ steps.run-task.outputs.task_arn }}
+          --tasks $TASK_ARN \
+          --max-attempts 240
+        echo "ECS task reached STOPPED."
+
+    # ---------------------------------------------------------
+    # Step 8: Check task exit code and stopped reason
+    # ---------------------------------------------------------
+    - name: Validate ECS task result
+      run: |
+        EXIT_CODE=$(aws ecs describe-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --tasks $TASK_ARN \
+          --query "tasks[0].containers[?name=='${{ env.CONTAINER_NAME }}'].exitCode | [0]" \
+          --output text)
+        STOPPED_REASON=$(aws ecs describe-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --tasks $TASK_ARN \
+          --query "tasks[0].stoppedReason" \
+          --output text)
+        echo "Container exit code: $EXIT_CODE"
+        echo "Stopped reason: $STOPPED_REASON"
+        if [ "$EXIT_CODE" != "0" ]; then
+          echo "::error::ECS task failed with exit code $EXIT_CODE - $STOPPED_REASON"
+          exit 1
+        fi
         echo "ECS task completed successfully."
 
     # ---------------------------------------------------------
-    # Step 8: Fetch CloudWatch logs (for visibility)
+    # Step 9: Fetch CloudWatch logs (task-specific stream)
     # ---------------------------------------------------------
     - name: Fetch ECS task logs
       run: |
         LOG_GROUP="/ecs/porch-scoring"
-        echo "Fetching latest logs from CloudWatch group: $LOG_GROUP"
+        LOG_STREAM="ecs/${{ env.CONTAINER_NAME }}/$TASK_ID"
+        echo "Fetching logs from $LOG_GROUP :: $LOG_STREAM"
         aws logs get-log-events \
-          --log-group-name $LOG_GROUP \
-          --log-stream-name $(aws logs describe-log-streams \
-            --log-group-name $LOG_GROUP \
-            --order-by LastEventTime \
-            --descending \
-            --max-items 1 \
-            --query "logStreams[0].logStreamName" \
-            --output text) \
-          --limit 50 \
-          --output text || echo "No logs found."
-
+          --log-group-name "$LOG_GROUP" \
+          --log-stream-name "$LOG_STREAM" \
+          --limit 200 \
+          --output text || echo "No logs found for stream $LOG_STREAM."
