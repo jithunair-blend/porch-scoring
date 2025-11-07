@@ -16,8 +16,9 @@ S3_ASSETS = {
 
     # Raw CSVs
     "original_csv":  {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters.csv"},
-    "acxiom_data":   {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters-ACX-appended.xlsx"},
-    "epsilon_data":  {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters-EPS-appended.xlsx"},
+    "original_cass_csv":  {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters_CASS.csv"},
+    # "acxiom_data":   {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters-ACX-appended.xlsx"},
+    # "epsilon_data":  {"bucket": "porchsalesdatafiles", "key": "AHP-2025-Converters-EPS-appended.xlsx"},
 }
 
 # Where downloaded files will be cached locally

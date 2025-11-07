@@ -2,8 +2,10 @@ import os
 import pandas as pd
 import boto3
 import snowflake.connector
+from helpers.read_s3 import get_asset
 from datetime import datetime
 from dotenv import load_dotenv  # <-- add this
+from config import config
 
 # ✅ Load environment variables from .env file
 load_dotenv()
@@ -19,8 +21,36 @@ ctx = snowflake.connector.connect(
 )
 cur = ctx.cursor()
 
+def stage_cass_file_to_snowflake(cur):
+    """
+    Retrieves the CASS CSV from S3 (via get_asset) and uploads it into
+    Snowflake stage @DATA_STAGE/porch-test-data for downstream COPY INTO use.
+    """
+    # 1️⃣ Get local copy of the CASS file (cached if already downloaded)
+    local_path = get_asset("original_cass_csv")
+    print(f"✅ Local CASS file ready at {local_path}")
+
+    # 2️⃣ Set Snowflake context
+    cur.execute("USE ROLE PORCH_ADMIN;")
+    cur.execute("USE DATABASE SANDBOX;")
+    cur.execute("USE SCHEMA DS;")
+
+    # 3️⃣ Upload file to Snowflake stage
+    # Escape Windows backslashes and quote the path
+    escaped_path = local_path.replace("\\", "\\\\")
+    put_cmd = f"""
+        PUT 'file://{escaped_path}' @DATA_STAGE/porch-test-data
+        AUTO_COMPRESS = FALSE
+        OVERWRITE = TRUE
+    """
+
+    print("⏫ Uploading CASS file to Snowflake stage ...")
+    cur.execute(put_cmd)
+    print("✅ File successfully staged to @DATA_STAGE/porch-test-data.")
 
 def generate_and_upload_acxiom_data():
+    # 🔹 Stage CASS file automatically
+    stage_cass_file_to_snowflake(cur)
     sql_script = """
     USE ROLE PORCH_ADMIN;
     USE DATABASE SANDBOX;
@@ -45,7 +75,7 @@ def generate_and_upload_acxiom_data():
     CLUSTER BY (LEFT(ZIPCODE,5), STATE);
 
     COPY INTO CASS_INPUT_NEW
-    FROM @DATA_STAGE/porch-test-data/AHP-2025-Converters_cass_CASSed.csv
+    FROM @DATA_STAGE/porch-test-data/AHP-2025-Converters_CASS.csv
     FILE_FORMAT = (TYPE = 'CSV' FIELD_OPTIONALLY_ENCLOSED_BY='"' SKIP_HEADER=1);
 
     ------------------------------------------------------------
@@ -485,5 +515,5 @@ def generate_and_upload_epsilon_data():
 
 
 # if __name__ == "__main__":
-#     generate_and_upload_epsilon_data()
-#     # generate_and_upload_acxiom_data()
+# #     generate_and_upload_epsilon_data()
+#     generate_and_upload_acxiom_data()
